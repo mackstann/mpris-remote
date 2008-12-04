@@ -29,6 +29,10 @@ COMMANDS:
   addtrack <uri>       add track at specified uri
                          (valid file types/protocols dependent on player)
   addtrack <uri> true  add track at specified uri and start playing it now
+                         a uri can also be "-" which will read in filenames
+                         on stdin, one per line.  (this applies to both
+                         variants of addtrack.  the "playnow" variant will
+                         add+play the first track and continue adding the rest.)
   deltrack <track#>    delete specified track (track numbers start at zero)
 
   position             print position within current track
