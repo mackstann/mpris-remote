@@ -8,15 +8,28 @@ USAGE: mpris-remote <command> <args to command>
 
 COMMANDS:
 
-  identity             print identity of player (e.g. name and version)
-  quit                 cause player to exit
   prev                 go to previous track
   next                 go to next track
   stop                 stop playback
   play                 start playback
   pause                pause playback
+
+  trackinfo            print metadata for current track
+
   volume               print volume
   volume [0..100]      set volume
+
+  repeat <true|false>  set current track repeat on or off
+  loop                 prints whether or not player will loop track list at end
+  loop <true|false>    sets whether or not player will loop track list at end
+  random               prints whether or not player will play randomly/shuffle
+  random <true|false>  sets whether or not player will play randomly/shuffle
+
+  addtrack <uri>       add track at specified uri
+                         (valid file types/protocols dependent on player)
+  addtrack <uri> true  add track at specified uri and start playing it now
+  deltrack <position>  delete specified track (track numbers start at zero)
+
   position             print position within current track
   position <time>      seek to position in current track
                          supported time formats:
@@ -26,17 +39,12 @@ COMMANDS:
                          e.g. -1:00
                          <actually all of that is a lie -- right now you can
                           only pass in an integer as milliseconds>
-  repeat <true|false>  set current track repeat on or off
-  deltrack <position>  delete specified track (track numbers start at zero)
-  addtrack <uri>       add track at specified uri
-                         (valid file types/protocols dependent on player)
-  addtrack <uri> true  add track at specified uri and start playing it now
+
   tracknum             print track number of current track
   numtracks            print total number of tracks in track list
-  loop                 prints whether or not player will loop track list at end
-  loop <true|false>    sets whether or not player will loop track list at end
-  random               prints whether or not player will play randomly/shuffle
-  random <true|false>  sets whether or not player will play randomly/shuffle
+
+  identity             print identity of player (e.g. name and version)
+  quit                 cause player to exit
 
 Set $MPRIS_REMOTE_PLAYER for additional player-specific functionality.
 Currently supported values: [generic, corn] XXX generic not actually supported yet
@@ -180,11 +188,7 @@ class Commander(object):
         if pos is not None:
             player.PositionSet(int(pos))
         else:
-            raw = player.PositionGet()
-            min = raw / 1000 / 60
-            sec = raw / 1000 % 60
-            ms = raw % 1000
-            print "%d:%02d.%03d" % (min, sec, ms)
+            print format_time(player.PositionGet())
 
     @explain_numargs(1)
     @explain_argtype(0, boolean)
@@ -193,6 +197,27 @@ class Commander(object):
             player.Repeat(True)
         elif on == 'false':
             player.Repeat(False)
+
+    @explain_numargs(0)
+    def trackinfo(self):
+        result = player.GetMetadata()
+        for k in sorted(result.keys()):
+            v = result[k]
+
+            if k == 'audio-bitrate':
+                v = float(v) / 1000
+                if v % 1 < 0.01:
+                    v = int(v)
+                else:
+                    v = "%.3f" % v
+
+            if k == 'time':
+                v = "%s (%s)" % (v, format_time(int(v) * 1000).split('.')[0])
+
+            if k == 'mtime':
+                v = "%s (%s)" % (v, format_time(int(v)))
+
+            print "%s: %s" % (k, v)
 
     # playlist
 
@@ -250,6 +275,12 @@ class Commander(object):
             # check player status and print random status... requires figuring
             # out the struct problem
             raise RuntimeError("XXX UNIMPLEMENTED")
+
+def format_time(rawms):
+    min = rawms / 1000 / 60
+    sec = rawms / 1000 % 60
+    ms = rawms % 1000
+    return "%d:%02d.%03d" % (min, sec, ms)
 
 
 if __name__ == '__main__':
