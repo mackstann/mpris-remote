@@ -15,6 +15,7 @@ COMMANDS:
   pause                pause playback
 
   trackinfo            print metadata for current track
+  trackinfo <track#>   print metadata for given track (track numbers start at 0)
 
   volume               print volume
   volume [0..100]      set volume
@@ -28,7 +29,7 @@ COMMANDS:
   addtrack <uri>       add track at specified uri
                          (valid file types/protocols dependent on player)
   addtrack <uri> true  add track at specified uri and start playing it now
-  deltrack <position>  delete specified track (track numbers start at zero)
+  deltrack <track#>    delete specified track (track numbers start at zero)
 
   position             print position within current track
   position <time>      seek to position in current track
@@ -198,9 +199,16 @@ class Commander(object):
         elif on == 'false':
             player.Repeat(False)
 
-    @explain_numargs(0)
-    def trackinfo(self):
-        result = player.GetMetadata()
+    # trackinfo swings both ways.  it handles Player.GetMetadata() and
+    # TrackList.GetMetadata(<track>).
+    @explain_numargs(0, 1)
+    @explain_argtype(0, track_num, optional=True)
+    def trackinfo(self, track=None):
+        if track is not None:
+            result = tracklist.GetMetadata(int(track))
+        else:
+            result = player.GetMetadata()
+
         for k in sorted(result.keys()):
             v = result[k]
 
@@ -219,7 +227,7 @@ class Commander(object):
 
             print "%s: %s" % (k, v)
 
-    # playlist
+    # tracklist
 
     @explain_numargs(1)
     @explain_argtype(0, track_num)
