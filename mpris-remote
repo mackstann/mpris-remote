@@ -1,0 +1,267 @@
+#!/usr/bin/env python
+
+usage = """
+mpris-remote, written by Nick Welch <nick@incise.org> in the year 2008.
+Author disclaims copyright.  Homepage: http://incise.org/mpris-remote.html
+
+USAGE: mpris-remote <command> <args to command>
+
+COMMANDS:
+
+  identity             print identity of player (e.g. name and version)
+  quit                 cause player to exit
+  prev                 go to previous track
+  next                 go to next track
+  stop                 stop playback
+  play                 start playback
+  pause                pause playback
+  volume               print volume
+  volume [0..100]      set volume
+  position             print position within current track
+  position <time>      seek to position in current track
+                         supported time formats:
+                         hh:mm:ss.ms | mm:ss.ms | ss:.ms | .ms
+                         hh:mm:ss    |    hh:mm | ss     | x%
+                         all are negatable to compute from end of track,
+                         e.g. -1:00
+                         <actually all of that is a lie -- right now you can
+                          only pass in an integer as milliseconds>
+  repeat <true|false>  set current track repeat on or off
+  deltrack <position>  delete specified track (track numbers start at zero)
+  addtrack <uri>       add track at specified uri
+                         (valid file types/protocols dependent on player)
+  addtrack <uri> true  add track at specified uri and start playing it now
+  tracknum             print track number of current track
+  numtracks            print total number of tracks in track list
+  loop                 prints whether or not player will loop track list at end
+  loop <true|false>    sets whether or not player will loop track list at end
+  random               prints whether or not player will play randomly/shuffle
+  random <true|false>  sets whether or not player will play randomly/shuffle
+
+Set $MPRIS_REMOTE_PLAYER for additional player-specific functionality.
+Currently supported values: [generic, corn] XXX generic not actually supported yet
+"""
+
+import os, sys, re, dbus
+
+bus = dbus.SessionBus()
+
+player = os.environ['MPRIS_REMOTE_PLAYER']
+
+root_obj      = bus.get_object('org.mpris.%s' % player, '/')
+player_obj    = bus.get_object('org.mpris.%s' % player, '/Player')
+tracklist_obj = bus.get_object('org.mpris.%s' % player, '/TrackList')
+
+root      = dbus.Interface(root_obj,      dbus_interface='org.freedesktop.MediaPlayer')
+player    = dbus.Interface(player_obj,    dbus_interface='org.freedesktop.MediaPlayer')
+tracklist = dbus.Interface(tracklist_obj, dbus_interface='org.freedesktop.MediaPlayer')
+
+tracklist_len = tracklist.GetLength()
+
+class YouDidItWrong(Exception): pass
+
+# argument type/content validity checkers
+
+class boolean(object):
+    type_desc = 'a boolean'
+    def __init__(self, s):
+        if s not in ('true', 'false'):
+            raise ValueError
+
+class zero_to_100(object):
+    type_desc = 'an integer within [0..100]'
+    def __init__(self, s):
+        if not 0 <= int(s) <= 100:
+            raise ValueError
+
+class track_num(object):
+    if tracklist_len:
+        type_desc = 'an integer within [0..%d] (current playlist size is %d)' % (tracklist_len-1, tracklist_len)
+    else:
+        type_desc = 'an integer within [0..<tracklist length>], ' \
+                    'although the current track list is empty, so ' \
+                    'no number you could possibly come up with would ' \
+                    'be good enough right now'
+    def __init__(self, s):
+        if not 0 <= int(s) <= tracklist_len-1:
+            raise ValueError
+
+class valid_corn_uri(object):
+    type_desc = 'a valid URI (media file, playlist file, stream URI, or directory)'
+    def __init__(self, s):
+        if s.startswith('file://'):
+            s = s.partition('file://')[2]
+
+        # arbitrary uri, don't wanna hardcode possible protocols
+        if re.match(r'\w+://.*', s):
+            return
+
+        if os.path.isfile(s) or os.path.isdir(s) or s == '-':
+            return
+
+        raise ValueError
+
+valid_uri = valid_corn_uri
+
+# wrong argument(s) explanation decorators
+
+def explain_numargs(*forms):
+    def wrapper(meth):
+        def new(self, *args):
+            if len(args) not in forms:
+                s = ' or '.join(map(str, forms))
+                raise YouDidItWrong("%s takes %s argument(s)." % (meth.func_name, s))
+            return meth(self, *args)
+        new.func_name = meth.func_name
+        return new
+    return wrapper
+
+def explain_argtype(i, typeclass, optional=False):
+    def wrapper(meth):
+        def new(self, *args):
+            if not optional or len(args) > i:
+                try:
+                    typeclass(args[i])
+                except:
+                    raise YouDidItWrong("argument %d to %s must be %s." % (i+1, meth.func_name, typeclass.type_desc))
+            return meth(self, *args)
+        new.func_name = meth.func_name
+        return new
+    return wrapper
+
+# and the core
+
+class Commander(object):
+
+    # root
+
+    @explain_numargs(0)
+    def identity(self):
+        print root.Identity()
+
+    @explain_numargs(0)
+    def quit(self):
+        root.Quit()
+
+    # player
+
+    @explain_numargs(0)
+    def prev(self):
+        player.Prev()
+
+    @explain_numargs(0)
+    def next(self):
+        player.Next()
+
+    @explain_numargs(0)
+    def stop(self):
+        player.Stop()
+
+    @explain_numargs(0)
+    def play(self):
+        player.Play()
+
+    @explain_numargs(0)
+    def pause(self):
+        player.Pause()
+
+    @explain_numargs(0, 1)
+    @explain_argtype(0, zero_to_100, optional=True)
+    def volume(self, vol=None):
+        if vol is not None:
+            player.VolumeSet(int(vol))
+        else:
+            print player.VolumeGet()
+
+    @explain_numargs(0, 1)
+    @explain_argtype(0, zero_to_100, optional=True)
+    def position(self, pos=None):
+        # todo: support positioning by H:M:S, and P%, and negatives of all
+        if pos is not None:
+            player.PositionSet(int(pos))
+        else:
+            raw = player.PositionGet()
+            min = raw / 1000 / 60
+            sec = raw / 1000 % 60
+            ms = raw % 1000
+            print "%d:%02d.%03d" % (min, sec, ms)
+
+    @explain_numargs(1)
+    @explain_argtype(0, boolean)
+    def repeat(self, on):
+        if on == 'true':
+            player.Repeat(True)
+        elif on == 'false':
+            player.Repeat(False)
+
+    # playlist
+
+    @explain_numargs(1)
+    @explain_argtype(0, track_num)
+    def deltrack(self, pos):
+        tracklist.DelTrack(int(pos))
+
+    @explain_numargs(1, 2)
+    @explain_argtype(0, valid_uri)
+    @explain_argtype(1, boolean, optional=True)
+    def addtrack(self, uri, playnow=False):
+        if uri == '-':
+            for i, line in enumerate(sys.stdin):
+
+                path = line.rstrip('\r\n')
+                if not (os.path.isfile(path) or os.path.isdir(path)):
+                    raise YouDidItWrong('not a file or directory: %s' % path)
+
+                if playnow and i == 0:
+                    tracklist.AddTrack(path, True)
+                else:
+                    tracklist.AddTrack(path, False)
+        else:
+            tracklist.AddTrack(uri, playnow)
+
+    @explain_numargs(0)
+    def tracknum(self):
+        print tracklist.GetCurrentTrack()
+
+    @explain_numargs(0)
+    def numtracks(self):
+        print tracklist.GetLength()
+
+    @explain_numargs(0, 1)
+    @explain_argtype(0, boolean, optional=True)
+    def loop(self, on=None):
+        if on == 'true':
+            tracklist.SetLoop(True)
+        elif on == 'false':
+            tracklist.SetLoop(False)
+        else:
+            # check player status and print loop status... requires figuring
+            # out the struct problem
+            raise RuntimeError("XXX UNIMPLEMENTED")
+
+    @explain_numargs(0, 1)
+    @explain_argtype(0, boolean, optional=True)
+    def random(self, on=None):
+        if on == 'true':
+            tracklist.SetRandom(True)
+        elif on == 'false':
+            tracklist.SetRandom(False)
+        else:
+            # check player status and print random status... requires figuring
+            # out the struct problem
+            raise RuntimeError("XXX UNIMPLEMENTED")
+
+
+if __name__ == '__main__':
+    if len(sys.argv) == 1 or sys.argv[1] in ('-h', '--help', '-?'):
+        print usage
+    else:
+        method_name = sys.argv[1]
+        args = sys.argv[2:]
+        try:
+            getattr(Commander(), method_name)(*args)
+        except YouDidItWrong, e:
+            print >>sys.stderr, e
+            raise SystemExit(1)
+
+
