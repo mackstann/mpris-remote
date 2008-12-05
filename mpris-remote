@@ -4,9 +4,12 @@ usage = """
 mpris-remote, written by Nick Welch <nick@incise.org> in the year 2008.
 Author disclaims copyright.  Homepage: http://incise.org/mpris-remote.html
 
-USAGE: mpris-remote <command> <args to command>
+USAGE: mpris-remote [command [args to command]]
 
 COMMANDS:
+
+  [no command]         prints a display of current player status, song playing,
+                       etc.
 
   prev                 go to previous track
   next                 go to next track
