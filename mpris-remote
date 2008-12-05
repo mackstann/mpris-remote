@@ -18,7 +18,7 @@ COMMANDS:
   trackinfo <track#>   print metadata for given track (track numbers start at 0)
 
   volume               print volume
-  volume [0..100]      set volume
+  volume <0..100>      set volume
 
   repeat <true|false>  set current track repeat on or off
   loop                 prints whether or not player will loop track list at end
@@ -39,15 +39,19 @@ COMMANDS:
   position             print position within current track
   position <time>      seek to position in current track
                          supported time formats:
-                         hh:mm:ss.ms | mm:ss.ms | ss:.ms | .ms
-                         hh:mm:ss    |    hh:mm | ss     | x%
+                         hh:mm:ss.ms | mm:ss.ms | ss | ss.ms | .ms
+                         hh:mm:ss    |    hh:mm | x% | x.x[x[x]...]%
                          all are negatable to compute from end of track,
-                         e.g. -1:00
+                         e.g. -1:00.  the "ss" format can be >60 and the ".ms"
+                         format can be >1000.
                          <actually all of that is a lie -- right now you can
                           only pass in an integer as milliseconds>
 
   tracknum             print track number of current track
   numtracks            print total number of tracks in track list
+
+  playstatus           print whether the player is playing, paused, or stopped,
+                       and print the random, repeat, and loop settings
 
   identity             print identity of player (e.g. name and version)
   quit                 cause player to exit
@@ -205,6 +209,14 @@ class Commander(object):
         elif on == 'false':
             player.Repeat(False)
 
+    @explain_numargs(0)
+    def playstatus(self):
+        status = player.GetStatus()
+        print "playing: %s" % playstatus_from_int(status[0])
+        print "random/shuffle: %s" % ("true" if status[1] else "false")
+        print "repeat track: %s" % ("true" if status[2] else "false")
+        print "repeat list: %s" % ("true" if status[3] else "false")
+
     # trackinfo swings both ways.  it handles Player.GetMetadata() and
     # TrackList.GetMetadata(<track>).
     @explain_numargs(0, 1)
@@ -296,6 +308,7 @@ class Commander(object):
             # out the struct problem
             raise RuntimeError("XXX UNIMPLEMENTED")
 
+
 def format_time(rawms):
     min = rawms / 1000 / 60
     sec = rawms / 1000 % 60
@@ -303,8 +316,36 @@ def format_time(rawms):
     return "%d:%02d.%03d" % (min, sec, ms)
 
 
+def playstatus_from_int(n):
+    return ['playing', 'paused', 'stopped'][n]
+
+
+def print_nicey_nice():
+    status = player.GetStatus()
+    meta = player.GetMetadata()
+
+    print '[%s%s] @ %s' % (
+        playstatus_from_int(status[0]),
+        ' #%s' % meta['tracknumber'] if 'tracknumber' in meta else '',
+        format_time(player.PositionGet()).split('.')[0],
+    )
+    if 'artist' in meta:
+        print 'artist:', meta['artist']
+    if 'title' in meta:
+        print 'title:', meta['title']
+    if 'album' in meta:
+        print 'album:', meta['album']
+
+    print '[repeat %s] [random %s] [loop %s]' % (
+        "on" if status[2] else "off",
+        "on" if status[1] else "off",
+        "on" if status[3] else "off",
+    )
+
 if __name__ == '__main__':
-    if len(sys.argv) == 1 or sys.argv[1] in ('-h', '--help', '-?'):
+    if len(sys.argv) == 1:
+        print_nicey_nice()
+    elif sys.argv[1] in ('-h', '--help', '-?'):
         print usage
     else:
         method_name = sys.argv[1]
