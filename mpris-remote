@@ -34,6 +34,7 @@ COMMANDS:
                          variants of addtrack.  the "playnow" variant will
                          add+play the first track and continue adding the rest.)
   deltrack <track#>    delete specified track (track numbers start at zero)
+  clear                clear playlist
 
   position             print position within current track
   position <time>      seek to position in current track
@@ -51,15 +52,16 @@ COMMANDS:
   identity             print identity of player (e.g. name and version)
   quit                 cause player to exit
 
-Set $MPRIS_REMOTE_PLAYER for additional player-specific functionality.
-Currently supported values: [generic, corn] XXX generic not actually supported yet
 """
+
+#Set $MPRIS_REMOTE_PLAYER for additional player-specific functionality.
+#Currently supported values: [generic, corn] XXX generic not actually supported yet
 
 import os, sys, re, dbus
 
 bus = dbus.SessionBus()
 
-player = os.environ['MPRIS_REMOTE_PLAYER']
+player = os.environ.get('MPRIS_REMOTE_PLAYER', 'corn') # XXX
 
 root_obj      = bus.get_object('org.mpris.%s' % player, '/')
 player_obj    = bus.get_object('org.mpris.%s' % player, '/Player')
@@ -232,6 +234,12 @@ class Commander(object):
             print "%s: %s" % (k, v)
 
     # tracklist
+
+    @explain_numargs(0)
+    def clear(self):
+        player.Stop()
+        for i in range(tracklist.GetLength()):
+            tracklist.DelTrack(0)
 
     @explain_numargs(1)
     @explain_argtype(0, track_num)
