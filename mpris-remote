@@ -11,21 +11,23 @@ COMMANDS:
   [no command]         prints a display of current player status, song playing,
                        etc.
 
-  prev                 go to previous track
+  prev[ious]           go to previous track
   next                 go to next track
   stop                 stop playback
   play                 start playback
   pause                pause playback
 
   trackinfo            print metadata for current track
-  trackinfo <track#>   print metadata for given track (track numbers start at 0)
+  trackinfo <track#>   print metadata for given track
 
   volume               print volume
   volume <0..100>      set volume
 
   repeat <true|false>  set current track repeat on or off
+
   loop                 prints whether or not player will loop track list at end
   loop <true|false>    sets whether or not player will loop track list at end
+
   random               prints whether or not player will play randomly/shuffle
   random <true|false>  sets whether or not player will play randomly/shuffle
 
@@ -36,7 +38,7 @@ COMMANDS:
                          on stdin, one per line.  (this applies to both
                          variants of addtrack.  the "playnow" variant will
                          add+play the first track and continue adding the rest.)
-  deltrack <track#>    delete specified track (track numbers start at zero)
+  deltrack <track#>    delete specified track
   clear                clear playlist
 
   position             print position within current track
@@ -59,6 +61,11 @@ COMMANDS:
   identity             print identity of player (e.g. name and version)
   quit                 cause player to exit
 
+NOTES:
+
+  track numbers when used or displayed by commands always begin at zero, but
+  the informational display when mpris-remote is called with no arguments
+  starts them at one.  (track "1/2" being the last track would make no sense.)
 """
 
 #Set $MPRIS_REMOTE_PLAYER for additional player-specific functionality.
@@ -169,6 +176,10 @@ class Commander(object):
 
     @explain_numargs(0)
     def prev(self):
+        player.Prev()
+
+    @explain_numargs(0)
+    def previous(self):
         player.Prev()
 
     @explain_numargs(0)
@@ -329,7 +340,7 @@ def print_nicey_nice():
 
     print '[%s %d/%d] @ %s%s' % (
         playstatus_from_int(status[0]),
-        tracklist.GetCurrentTrack(), tracklist.GetLength(),
+        tracklist.GetCurrentTrack()+1, tracklist.GetLength(),
         format_time(player.PositionGet()).split('.')[0],
         ' - #%s' % meta['tracknumber'] if 'tracknumber' in meta else '',
     )
