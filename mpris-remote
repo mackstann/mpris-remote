@@ -333,11 +333,11 @@ def print_nicey_nice():
         format_time(player.PositionGet()).split('.')[0],
     )
     if 'artist' in meta:
-        print 'artist:', meta['artist']
+        print '  artist:', meta['artist']
     if 'title' in meta:
-        print 'title:', meta['title']
+        print '  title:', meta['title']
     if 'album' in meta:
-        print 'album:', meta['album']
+        print '  album:', meta['album']
 
     print '[repeat %s] [random %s] [loop %s]' % (
         "on" if status[2] else "off",
