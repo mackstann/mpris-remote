@@ -40,7 +40,7 @@ COMMANDS:
   clear                clear playlist
 
   position             print position within current track
-  position <time>      seek to position in current track
+  seek <time>          seek to position in current track
                          supported time formats:
                          hh:mm:ss.ms | mm:ss.ms | ss | ss.ms | .ms
                          hh:mm:ss    |    hh:mm | x% | x.x[x[x]...]%
@@ -195,14 +195,14 @@ class Commander(object):
         else:
             print player.VolumeGet()
 
-    @explain_numargs(0, 1)
-    @explain_argtype(0, zero_to_100, optional=True)
-    def position(self, pos=None):
-        # todo: support positioning by H:M:S, and P%, and negatives of all
-        if pos is not None:
-            player.PositionSet(int(pos))
-        else:
-            print format_time(player.PositionGet())
+    @explain_numargs(0)
+    def position(self):
+        print format_time(player.PositionGet())
+
+    @explain_numargs(1)
+    @explain_argtype(0, int)
+    def seek(self, pos):
+        player.PositionSet(int(pos))
 
     @explain_numargs(1)
     @explain_argtype(0, boolean)
