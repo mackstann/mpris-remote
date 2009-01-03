@@ -61,6 +61,17 @@ COMMANDS:
   identity             print identity of player (e.g. name and version)
   quit                 cause player to exit
 
+ENVIRONMENT VARIABLES:
+
+  MPRIS_REMOTE_PLAYER
+    If unset or set to "*", mpris-remote will communicate with the first player
+    it finds registered under "org.mpris.*" through D-BUS.  If you only have one
+    MPRIS-compliant player running, then this will be fine.  If you have more
+    than one running, you will want to set this variable to the name of the
+    player you want to connect to.  For example, if set to foo, it will try to
+    communicate with the player at "org.mpris.foo" and will fail if nothing
+    exists at that name.
+
 NOTES:
 
   track numbers when used or displayed by commands always begin at zero, but
@@ -87,9 +98,15 @@ player = os.environ.get('MPRIS_REMOTE_PLAYER', '*')
 if player == '*':
     player = get_player()
 
-root_obj      = bus.get_object('org.mpris.%s' % player, '/')
-player_obj    = bus.get_object('org.mpris.%s' % player, '/Player')
-tracklist_obj = bus.get_object('org.mpris.%s' % player, '/TrackList')
+try:
+    root_obj      = bus.get_object('org.mpris.%s' % player, '/')
+    player_obj    = bus.get_object('org.mpris.%s' % player, '/Player')
+    tracklist_obj = bus.get_object('org.mpris.%s' % player, '/TrackList')
+except dbus.exceptions.DBusException, e:
+    if e.get_dbus_name() == 'org.freedesktop.DBus.Error.ServiceUnknown':
+        print >>sys.stderr, 'Player "%s" was not found to be running.' % player
+        raise SystemExit(1)
+    raise
 
 root      = dbus.Interface(root_obj,      dbus_interface='org.freedesktop.MediaPlayer')
 player    = dbus.Interface(player_obj,    dbus_interface='org.freedesktop.MediaPlayer')
