@@ -68,10 +68,7 @@ NOTES:
   starts them at one.  (track "1/2" being the last track would make no sense.)
 """
 
-#Set $MPRIS_REMOTE_PLAYER for additional player-specific functionality.
-#Currently supported values: [generic, corn] XXX generic not actually supported yet
-
-import os, sys, re, dbus
+import os, sys, re, urllib2, dbus
 
 # returns first matching player
 def get_player(player):
@@ -129,7 +126,7 @@ class valid_corn_uri(object):
     type_desc = 'a valid URI (media file, playlist file, stream URI, or directory)'
     def __init__(self, s):
         if s.startswith('file://'):
-            s = s.partition('file://')[2]
+            s = urllib2.unquote(s.partition('file://')[2])
 
         # arbitrary uri, don't wanna hardcode possible protocols
         if re.match(r'\w+://.*', s):
