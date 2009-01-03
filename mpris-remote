@@ -73,9 +73,20 @@ NOTES:
 
 import os, sys, re, dbus
 
+# returns first matching player
+def getPlayer(player):
+    regex = re.compile('org\.mpris\.(.%s)' % player ) 
+    for name in bus.list_names():
+        if regex.match(name):
+            return regex.match(name).group(1)
+
 bus = dbus.SessionBus()
 
-player = os.environ.get('MPRIS_REMOTE_PLAYER', 'corn') # XXX
+player = os.environ.get('MPRIS_REMOTE_PLAYER', '*') # XXX
+
+if player == '*':
+    player = getPlayer(player)
+
 
 root_obj      = bus.get_object('org.mpris.%s' % player, '/')
 player_obj    = bus.get_object('org.mpris.%s' % player, '/Player')
