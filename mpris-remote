@@ -81,15 +81,18 @@ NOTES:
 
 import os, sys, re, urllib2, dbus
 
+org_mpris_re = re.compile('^org\.mpris\.([^.]+)$')
+
+def possible_names():
+    return [ name for name in bus.list_names() if org_mpris_re.match(name) ]
+
 # returns first matching player
 def get_player():
-    regex = re.compile('^org\.mpris\.([^.]+)$')
-    for name in bus.list_names():
-        if regex.match(name):
-            return regex.match(name).group(1)
-
-    print >>sys.stderr, "No MPRIS-compliant player found running."
-    raise SystemExit(1)
+    names = possible_names()
+    if not names:
+        print >>sys.stderr, "No MPRIS-compliant player found running."
+        raise SystemExit(1)
+    return org_mpris_re.match(names[0]).group(1)
 
 bus = dbus.SessionBus()
 
@@ -105,6 +108,13 @@ try:
 except dbus.exceptions.DBusException, e:
     if e.get_dbus_name() == 'org.freedesktop.DBus.Error.ServiceUnknown':
         print >>sys.stderr, 'Player "%s" was not found to be running.' % player
+        names = possible_names()
+        if names:
+            print >>sys.stderr, "But the following players were found to be running:"
+            for n in names:
+                print >>sys.stderr, "    %s" % n.replace("org.mpris.", "")
+        print >>sys.stderr, 'If you meant to use one of those players, ' \
+                            'set $MPRIS_REMOTE_PLAYER accordingly.'
         raise SystemExit(1)
     raise
 
