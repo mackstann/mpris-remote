@@ -375,11 +375,11 @@ def print_nicey_nice():
     status = player.GetStatus()
     meta = player.GetMetadata()
 
-    print '[%s %d/%d] @ %s/%s%s' % (
+    print '[%s %d/%d] @ %s%s%s' % (
         playstatus_from_int(status[0]),
         tracklist.GetCurrentTrack()+1, tracklist.GetLength(),
         format_time(player.PositionGet()).split('.')[0],
-        format_time(meta['mtime']).split('.')[0],
+        "/%s" % format_time(meta['mtime']).split('.')[0] if 'mtime' in meta else '',
         ' - #%s' % meta['tracknumber'] if 'tracknumber' in meta else '',
     )
     if 'artist' in meta:
