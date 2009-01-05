@@ -79,7 +79,7 @@ NOTES:
   starts them at one.  (track "1/2" being the last track would make no sense.)
 """
 
-import os, sys, re, urllib2, dbus
+import os, sys, re, time, urllib2, dbus
 
 org_mpris_re = re.compile('^org\.mpris\.([^.]+)$')
 
@@ -96,18 +96,18 @@ def get_player():
 
 bus = dbus.SessionBus()
 
-player = os.environ.get('MPRIS_REMOTE_PLAYER', '*')
+player_name = os.environ.get('MPRIS_REMOTE_PLAYER', '*')
 
-if player == '*':
-    player = get_player()
+if player_name == '*':
+    player_name = get_player()
 
 try:
-    root_obj      = bus.get_object('org.mpris.%s' % player, '/')
-    player_obj    = bus.get_object('org.mpris.%s' % player, '/Player')
-    tracklist_obj = bus.get_object('org.mpris.%s' % player, '/TrackList')
+    root_obj      = bus.get_object('org.mpris.%s' % player_name, '/')
+    player_obj    = bus.get_object('org.mpris.%s' % player_name, '/Player')
+    tracklist_obj = bus.get_object('org.mpris.%s' % player_name, '/TrackList')
 except dbus.exceptions.DBusException, e:
     if e.get_dbus_name() == 'org.freedesktop.DBus.Error.ServiceUnknown':
-        print >>sys.stderr, 'Player "%s" was not found to be running.' % player
+        print >>sys.stderr, 'Player "%s" was not found to be running.' % player_name
         names = possible_names()
         if names:
             print >>sys.stderr, "But the following players were found to be running:"
@@ -122,7 +122,10 @@ root      = dbus.Interface(root_obj,      dbus_interface='org.freedesktop.MediaP
 player    = dbus.Interface(player_obj,    dbus_interface='org.freedesktop.MediaPlayer')
 tracklist = dbus.Interface(tracklist_obj, dbus_interface='org.freedesktop.MediaPlayer')
 
-tracklist_len = tracklist.GetLength()
+try:
+    tracklist_len = tracklist.GetLength()
+except dbus.exceptions.DBusException:
+    tracklist_len = -1
 
 class YouDidItWrong(Exception): pass
 
@@ -141,14 +144,16 @@ class zero_to_100(object):
             raise ValueError
 
 class track_num(object):
-    if tracklist_len:
+    if tracklist_len > 0:
         type_desc = 'an integer within [0..%d] (current playlist size is %d)' % (tracklist_len-1, tracklist_len)
-    else:
+    elif tracklist_len == 0:
         type_desc = 'an integer within [0..<tracklist length>], ' \
                     'although the current track list is empty, so ' \
                     'no number you could possibly come up with would ' \
                     'be good enough right now'
     def __init__(self, s):
+        if tracklist_len == -1:
+            return # BMPx doesn't support TrackList GetLength
         if not 0 <= int(s) <= tracklist_len-1:
             raise ValueError
 
@@ -372,16 +377,104 @@ def playstatus_from_int(n):
 
 
 def print_nicey_nice():
-    status = player.GetStatus()
-    meta = player.GetMetadata()
+    # to be compatible with a wide array of implementations (some very
+    # incorrect/incomplete), we have to do a LOT of extra work here.
 
-    print '[%s %d/%d] @ %s%s%s' % (
-        playstatus_from_int(status[0]),
-        tracklist.GetCurrentTrack()+1, tracklist.GetLength(),
-        format_time(player.PositionGet()).split('.')[0],
-        "/%s" % format_time(meta['mtime']).split('.')[0] if 'mtime' in meta else '',
-        ' - #%s' % meta['tracknumber'] if 'tracknumber' in meta else '',
-    )
+    try:
+        status = player.GetStatus()
+    except dbus.exceptions.DBusException:
+        status = None
+
+    try:
+        status[0] # dragon player returns a single int, which is wrong
+    except TypeError:
+        status = None
+
+    try:
+        curtrack = tracklist.GetCurrentTrack()
+    except dbus.exceptions.DBusException:
+        curtrack = None
+
+    try:
+        pos = player.PositionGet()
+    except dbus.exceptions.DBusException:
+        pos = None
+
+    try:
+        meta = dict(player.GetMetadata())
+    except dbus.exceptions.DBusException:
+        meta = {}
+
+    if 'mtime' in meta:
+        mtime = int(meta['mtime'])
+        if abs(mtime - time.time()) < 60*60*24*365*5:
+            # if the mtime is within 5 years of right now, which would mean the
+            # song is thousands of hours long, then i'm gonna assume that the
+            # player is incorrectly using this field for the file's mtime, not
+            # the song length. (bmpx does this as of january 2008)
+            del meta['mtime']
+
+            # and also, if we know it's bmp, then we can swipe the time field
+            if player_name == 'bmp':
+                meta['mtime'] = meta['time'] * 1000
+
+    have_status = (status is not None)
+    have_curtrack = (curtrack is not None)
+    have_listlen = (tracklist_len >= 0)
+    have_player_info = (have_status or have_curtrack or have_listlen)
+
+    have_pos = (pos is not None)
+    have_mtime = ('mtime' in meta)
+    have_tracknum = ('tracknumber' in meta)
+    have_song_info = (have_pos or have_mtime or have_tracknum)
+
+    ##
+
+    if have_player_info:
+        sys.stdout.write('[')
+
+    if have_status:
+        sys.stdout.write("%s" % playstatus_from_int(status[0]))
+        if have_curtrack:
+            sys.stdout.write(' ')
+
+    if have_curtrack:
+        sys.stdout.write(str(curtrack+1))
+        if have_listlen:
+            sys.stdout.write('/')
+
+    if have_listlen:
+        sys.stdout.write(str(tracklist_len))
+
+    if have_player_info:
+        sys.stdout.write(']')
+
+    ##
+
+    if have_player_info and have_song_info:
+        sys.stdout.write(' ')
+
+    ##
+
+    if have_pos or have_mtime:
+        sys.stdout.write('@ ')
+        if have_pos:
+            sys.stdout.write(format_time(pos).split('.')[0])
+        elif have_mtime:
+            sys.stdout.write('?')
+
+        if have_mtime:
+            sys.stdout.write('/')
+            sys.stdout.write(format_time(meta['mtime']).split('.')[0])
+
+    if have_tracknum:
+        sys.stdout.write(' - #%s' % meta['tracknumber'])
+
+    if have_player_info or have_song_info:
+        sys.stdout.write('\n')
+
+    ##
+
     if 'artist' in meta:
         print '  artist:', meta['artist']
     if 'title' in meta:
@@ -389,11 +482,12 @@ def print_nicey_nice():
     if 'album' in meta:
         print '  album:', meta['album']
 
-    print '[repeat %s] [random %s] [loop %s]' % (
-        "on" if status[2] else "off",
-        "on" if status[1] else "off",
-        "on" if status[3] else "off",
-    )
+    if have_status:
+        print '[repeat %s] [random %s] [loop %s]' % (
+            "on" if status[2] else "off",
+            "on" if status[1] else "off",
+            "on" if status[3] else "off",
+        )
 
 if __name__ == '__main__':
     if len(sys.argv) == 1:
