@@ -61,6 +61,17 @@ COMMANDS:
   identity             print identity of player (e.g. name and version)
   quit                 cause player to exit
 
+ENVIRONMENT VARIABLES:
+
+  MPRIS_REMOTE_PLAYER
+    If unset or set to "*", mpris-remote will communicate with the first player
+    it finds registered under "org.mpris.*" through D-BUS.  If you only have one
+    MPRIS-compliant player running, then this will be fine.  If you have more
+    than one running, you will want to set this variable to the name of the
+    player you want to connect to.  For example, if set to foo, it will try to
+    communicate with the player at "org.mpris.foo" and will fail if nothing
+    exists at that name.
+
 NOTES:
 
   track numbers when used or displayed by commands always begin at zero, but
@@ -68,18 +79,44 @@ NOTES:
   starts them at one.  (track "1/2" being the last track would make no sense.)
 """
 
-#Set $MPRIS_REMOTE_PLAYER for additional player-specific functionality.
-#Currently supported values: [generic, corn] XXX generic not actually supported yet
+import os, sys, re, urllib2, dbus
 
-import os, sys, re, dbus
+org_mpris_re = re.compile('^org\.mpris\.([^.]+)$')
+
+def possible_names():
+    return [ name for name in bus.list_names() if org_mpris_re.match(name) ]
+
+# returns first matching player
+def get_player():
+    names = possible_names()
+    if not names:
+        print >>sys.stderr, "No MPRIS-compliant player found running."
+        raise SystemExit(1)
+    return org_mpris_re.match(names[0]).group(1)
 
 bus = dbus.SessionBus()
 
-player = os.environ.get('MPRIS_REMOTE_PLAYER', 'corn') # XXX
+player = os.environ.get('MPRIS_REMOTE_PLAYER', '*')
 
-root_obj      = bus.get_object('org.mpris.%s' % player, '/')
-player_obj    = bus.get_object('org.mpris.%s' % player, '/Player')
-tracklist_obj = bus.get_object('org.mpris.%s' % player, '/TrackList')
+if player == '*':
+    player = get_player()
+
+try:
+    root_obj      = bus.get_object('org.mpris.%s' % player, '/')
+    player_obj    = bus.get_object('org.mpris.%s' % player, '/Player')
+    tracklist_obj = bus.get_object('org.mpris.%s' % player, '/TrackList')
+except dbus.exceptions.DBusException, e:
+    if e.get_dbus_name() == 'org.freedesktop.DBus.Error.ServiceUnknown':
+        print >>sys.stderr, 'Player "%s" was not found to be running.' % player
+        names = possible_names()
+        if names:
+            print >>sys.stderr, "But the following players were found to be running:"
+            for n in names:
+                print >>sys.stderr, "    %s" % n.replace("org.mpris.", "")
+        print >>sys.stderr, 'If you meant to use one of those players, ' \
+                            'set $MPRIS_REMOTE_PLAYER accordingly.'
+        raise SystemExit(1)
+    raise
 
 root      = dbus.Interface(root_obj,      dbus_interface='org.freedesktop.MediaPlayer')
 player    = dbus.Interface(player_obj,    dbus_interface='org.freedesktop.MediaPlayer')
@@ -119,7 +156,7 @@ class valid_corn_uri(object):
     type_desc = 'a valid URI (media file, playlist file, stream URI, or directory)'
     def __init__(self, s):
         if s.startswith('file://'):
-            s = s.partition('file://')[2]
+            s = urllib2.unquote(s.partition('file://')[2])
 
         # arbitrary uri, don't wanna hardcode possible protocols
         if re.match(r'\w+://.*', s):
