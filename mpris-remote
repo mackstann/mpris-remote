@@ -338,10 +338,11 @@ def print_nicey_nice():
     status = player.GetStatus()
     meta = player.GetMetadata()
 
-    print '[%s %d/%d] @ %s%s' % (
+    print '[%s %d/%d] @ %s/%s%s' % (
         playstatus_from_int(status[0]),
         tracklist.GetCurrentTrack()+1, tracklist.GetLength(),
         format_time(player.PositionGet()).split('.')[0],
+        format_time(meta['mtime']).split('.')[0],
         ' - #%s' % meta['tracknumber'] if 'tracknumber' in meta else '',
     )
     if 'artist' in meta:
@@ -370,5 +371,7 @@ if __name__ == '__main__':
         except YouDidItWrong, e:
             print >>sys.stderr, e
             raise SystemExit(1)
+        except KeyboardInterrupt:
+            raise SystemExit(2)
 
 
