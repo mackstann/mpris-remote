@@ -61,6 +61,12 @@ COMMANDS:
   identity             print identity of player (e.g. name and version)
   quit                 cause player to exit
 
+PLAYER-SPECIFIC COMMANDS:
+
+  CORN:
+
+    play <track#>      play a specific track
+
 ENVIRONMENT VARIABLES:
 
   MPRIS_REMOTE_PLAYER
@@ -365,6 +371,29 @@ class Commander(object):
             raise RuntimeError("XXX UNIMPLEMENTED")
 
 
+class Commander_corn(Commander):
+    def __init__(self):
+        super(Commander_corn, self).__init__(self)
+        corn_obj = bus.get_object('org.mpris.corn', '/Corn')
+        self.corn = dbus.Interface(corn_obj, dbus_interface='org.corn.CornPlayer')
+
+    @explain_numargs(0)
+    def clear(self):
+        self.corn.Clear()
+
+    @explain_numargs(0, 1)
+    @explain_argtype(0, track_num, optional=True)
+    def play(self, pos=None):
+        if pos is None:
+            super(Commander_corn, self).play()
+        else:
+            self.corn.PlayTrack(int(pos))
+
+    @explain_numargs(2)
+    @explain_argtype(0, track_num, int)
+    def move(self, from_, to):
+        self.corn.Move(int(from_), int(to))
+
 def format_time(rawms):
     min = rawms / 1000 / 60
     sec = rawms / 1000 % 60
@@ -497,8 +526,14 @@ if __name__ == '__main__':
     else:
         method_name = sys.argv[1]
         args = sys.argv[2:]
+
+        if 'Commander_'+player_name in globals():
+            cmdr = globals()['Commander_'+player_name]
+        else:
+            cmdr = Commander
+
         try:
-            getattr(Commander(), method_name)(*args)
+            getattr(cmdr(), method_name)(*args)
         except YouDidItWrong, e:
             print >>sys.stderr, e
             raise SystemExit(1)
