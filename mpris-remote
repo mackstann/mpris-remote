@@ -19,6 +19,7 @@ COMMANDS:
 
   trackinfo            print metadata for current track
   trackinfo <track#>   print metadata for given track
+  trackinfo '*'        print metadata for all tracks
 
   volume               print volume
   volume <0..100>      set volume
@@ -163,6 +164,11 @@ class track_num(object):
         if not 0 <= int(s) <= tracklist_len-1:
             raise ValueError
 
+class track_num_or_star(object):
+    def __init__(self, s):
+        if s != '*':
+            super(track_num_or_star, self).__init__()
+
 class valid_corn_uri(object):
     type_desc = 'a valid URI (media file, playlist file, stream URI, or directory)'
     def __init__(self, s):
@@ -207,6 +213,25 @@ def explain_argtype(i, typeclass, optional=False):
     return wrapper
 
 # and the core
+
+def print_metadata(dct):
+    for k in sorted(dct.keys()):
+        v = dct[k]
+
+        if k == 'audio-bitrate':
+            v = float(v) / 1000
+            if v % 1 < 0.01:
+                v = int(v)
+            else:
+                v = "%.3f" % v
+
+        if k == 'time':
+            v = "%s (%s)" % (v, format_time(int(v) * 1000).split('.')[0])
+
+        if k == 'mtime':
+            v = "%s (%s)" % (v, format_time(int(v)))
+
+        print "%s: %s" % (k, v)
 
 class Commander(object):
 
@@ -279,33 +304,17 @@ class Commander(object):
         print "repeat track: %s" % ("true" if status[2] else "false")
         print "repeat list: %s" % ("true" if status[3] else "false")
 
-    # trackinfo swings both ways.  it handles Player.GetMetadata() and
-    # TrackList.GetMetadata(<track>).
     @explain_numargs(0, 1)
-    @explain_argtype(0, track_num, optional=True)
+    @explain_argtype(0, track_num_or_star, optional=True)
     def trackinfo(self, track=None):
-        if track is not None:
-            result = tracklist.GetMetadata(int(track))
+        if track == '*':
+            for i in range(tracklist_len):
+                print_metadata(tracklist.GetMetadata(i))
+                print
+        elif track is not None:
+            print_metadata(tracklist.GetMetadata(int(track)))
         else:
-            result = player.GetMetadata()
-
-        for k in sorted(result.keys()):
-            v = result[k]
-
-            if k == 'audio-bitrate':
-                v = float(v) / 1000
-                if v % 1 < 0.01:
-                    v = int(v)
-                else:
-                    v = "%.3f" % v
-
-            if k == 'time':
-                v = "%s (%s)" % (v, format_time(int(v) * 1000).split('.')[0])
-
-            if k == 'mtime':
-                v = "%s (%s)" % (v, format_time(int(v)))
-
-            print "%s: %s" % (k, v)
+            print_metadata(player.GetMetadata())
 
     # tracklist
 
