@@ -113,17 +113,18 @@ try:
     player_obj    = bus.get_object('org.mpris.%s' % player_name, '/Player')
     tracklist_obj = bus.get_object('org.mpris.%s' % player_name, '/TrackList')
 except dbus.exceptions.DBusException, e:
-    if e.get_dbus_name() == 'org.freedesktop.DBus.Error.ServiceUnknown':
-        print >>sys.stderr, 'Player "%s" was not found to be running.' % player_name
-        names = possible_names()
-        if names:
-            print >>sys.stderr, "But the following players were found to be running:"
-            for n in names:
-                print >>sys.stderr, "    %s" % n.replace("org.mpris.", "")
-        print >>sys.stderr, 'If you meant to use one of those players, ' \
-                            'set $MPRIS_REMOTE_PLAYER accordingly.'
-        raise SystemExit(1)
-    raise
+    if e.get_dbus_name() != 'org.freedesktop.DBus.Error.ServiceUnknown':
+        raise
+
+    print >>sys.stderr, 'Player "%s" was not found to be running.' % player_name
+    names = possible_names()
+    if names:
+        print >>sys.stderr, "But the following players were found to be running:"
+        for n in names:
+            print >>sys.stderr, "    %s" % n.replace("org.mpris.", "")
+    print >>sys.stderr, 'If you meant to use one of those players, ' \
+                        'set $MPRIS_REMOTE_PLAYER accordingly.'
+    raise SystemExit(1)
 
 root      = dbus.Interface(root_obj,      dbus_interface='org.freedesktop.MediaPlayer')
 player    = dbus.Interface(player_obj,    dbus_interface='org.freedesktop.MediaPlayer')
@@ -132,25 +133,26 @@ tracklist = dbus.Interface(tracklist_obj, dbus_interface='org.freedesktop.MediaP
 try:
     tracklist_len = tracklist.GetLength()
 except dbus.exceptions.DBusException:
+    # GetLength() not supported by player (BMPx for example)
     tracklist_len = -1
 
 class YouDidItWrong(Exception): pass
 
 # argument type/content validity checkers
 
-class boolean(object):
+class is_boolean(object):
     type_desc = 'a boolean'
-    def __init__(self, s):
-        if s not in ('true', 'false'):
+    def __init__(self, arg):
+        if arg not in ('true', 'false'):
             raise ValueError
 
-class zero_to_100(object):
+class is_zero_to_100(object):
     type_desc = 'an integer within [0..100]'
-    def __init__(self, s):
-        if not 0 <= int(s) <= 100:
+    def __init__(self, arg):
+        if not 0 <= int(arg) <= 100:
             raise ValueError
 
-class track_num(object):
+class is_track_num(object):
     if tracklist_len > 0:
         type_desc = 'an integer within [0..%d] (current playlist size is %d)' % (tracklist_len-1, tracklist_len)
     elif tracklist_len == 0:
@@ -158,33 +160,36 @@ class track_num(object):
                     'although the current track list is empty, so ' \
                     'no number you could possibly come up with would ' \
                     'be good enough right now'
-    def __init__(self, s):
+    def __init__(self, arg):
         if tracklist_len == -1:
-            return # BMPx doesn't support TrackList GetLength
-        if not 0 <= int(s) <= tracklist_len-1:
+            return # not much we can do
+        if not 0 <= int(arg) <= tracklist_len-1:
             raise ValueError
 
-class track_num_or_star(object):
-    def __init__(self, s):
-        if s != '*':
-            super(track_num_or_star, self).__init__()
+class is_track_num_or_star(object):
+    type_desc = is_track_num.type_desc + "\n\nOR a '*' to indicate all tracks"
+    def __init__(self, arg):
+        if arg != '*':
+            is_track_num(arg)
 
-class valid_corn_uri(object):
+class is_valid_corn_uri(object):
     type_desc = 'a valid URI (media file, playlist file, stream URI, or directory)'
-    def __init__(self, s):
-        if s.startswith('file://'):
-            s = urllib2.unquote(s.partition('file://')[2])
+    def __init__(self, arg):
+        if arg.startswith('file://'):
+            arg = urllib2.unquote(arg.partition('file://')[2])
 
         # arbitrary uri, don't wanna hardcode possible protocols
-        if re.match(r'\w+://.*', s):
+        if re.match(r'\w+://.*', arg):
             return
 
-        if os.path.isfile(s) or os.path.isdir(s) or s == '-':
+        if os.path.isfile(arg) or os.path.isdir(arg) or arg == '-':
             return
 
         raise ValueError
 
-valid_uri = valid_corn_uri
+# when other players are supported more completely, we can have multiple
+# player-specific versions of this.  for now there's just one.
+is_valid_uri = is_valid_corn_uri
 
 # wrong argument(s) explanation decorators
 
@@ -272,7 +277,7 @@ class Commander(object):
         player.Pause()
 
     @explain_numargs(0, 1)
-    @explain_argtype(0, zero_to_100, optional=True)
+    @explain_argtype(0, is_zero_to_100, optional=True)
     def volume(self, vol=None):
         if vol is not None:
             player.VolumeSet(int(vol))
@@ -289,7 +294,7 @@ class Commander(object):
         player.PositionSet(int(pos))
 
     @explain_numargs(1)
-    @explain_argtype(0, boolean)
+    @explain_argtype(0, is_boolean)
     def repeat(self, on):
         if on == 'true':
             player.Repeat(True)
@@ -305,7 +310,7 @@ class Commander(object):
         print "repeat list: %s" % ("true" if status[3] else "false")
 
     @explain_numargs(0, 1)
-    @explain_argtype(0, track_num_or_star, optional=True)
+    @explain_argtype(0, is_track_num_or_star, optional=True)
     def trackinfo(self, track=None):
         if track == '*':
             for i in range(tracklist_len):
@@ -325,14 +330,14 @@ class Commander(object):
             tracklist.DelTrack(0)
 
     @explain_numargs(1)
-    @explain_argtype(0, track_num)
+    @explain_argtype(0, is_track_num)
     def deltrack(self, pos):
         tracklist.DelTrack(int(pos))
 
     @explain_numargs(1, 2)
-    @explain_argtype(0, valid_uri)
-    @explain_argtype(1, boolean, optional=True)
-    def addtrack(self, uri, playnow=False):
+    @explain_argtype(0, is_valid_uri)
+    @explain_argtype(1, is_boolean, optional=True)
+    def addtrack(self, uri, playnow='false'):
         if uri == '-':
             for i, line in enumerate(sys.stdin):
 
@@ -340,12 +345,12 @@ class Commander(object):
                 if not (os.path.isfile(path) or os.path.isdir(path)):
                     raise YouDidItWrong('not a file or directory: %s' % path)
 
-                if playnow and i == 0:
+                if bool(playnow) and i == 0:
                     tracklist.AddTrack(path, True)
                 else:
                     tracklist.AddTrack(path, False)
         else:
-            tracklist.AddTrack(uri, playnow)
+            tracklist.AddTrack(uri, bool(playnow))
 
     @explain_numargs(0)
     def tracknum(self):
@@ -356,29 +361,36 @@ class Commander(object):
         print tracklist.GetLength()
 
     @explain_numargs(0, 1)
-    @explain_argtype(0, boolean, optional=True)
+    @explain_argtype(0, is_boolean, optional=True)
     def loop(self, on=None):
         if on == 'true':
             tracklist.SetLoop(True)
         elif on == 'false':
             tracklist.SetLoop(False)
         else:
-            # check player status and print loop status... requires figuring
-            # out the struct problem
-            raise RuntimeError("XXX UNIMPLEMENTED")
+            try:
+                status = player.GetStatus()
+            except dbus.exceptions.DBusException:
+                print >>sys.stderr, "Player does not support checking loop status."
+            else:
+                print "true" if status[3] else "false"
 
     @explain_numargs(0, 1)
-    @explain_argtype(0, boolean, optional=True)
+    @explain_argtype(0, is_boolean, optional=True)
     def random(self, on=None):
         if on == 'true':
             tracklist.SetRandom(True)
         elif on == 'false':
             tracklist.SetRandom(False)
         else:
-            # check player status and print random status... requires figuring
-            # out the struct problem
-            raise RuntimeError("XXX UNIMPLEMENTED")
+            try:
+                status = player.GetStatus()
+            except dbus.exceptions.DBusException:
+                print >>sys.stderr, "Player does not support checking random status."
+            else:
+                print "true" if status[2] else "false"
 
+# player-specific Commanders, only one for now
 
 class Commander_corn(Commander):
     def __init__(self):
@@ -391,7 +403,7 @@ class Commander_corn(Commander):
         self.corn.Clear()
 
     @explain_numargs(0, 1)
-    @explain_argtype(0, track_num, optional=True)
+    @explain_argtype(0, is_track_num, optional=True)
     def play(self, pos=None):
         if pos is None:
             super(Commander_corn, self).play()
@@ -399,7 +411,7 @@ class Commander_corn(Commander):
             self.corn.PlayTrack(int(pos))
 
     @explain_numargs(2)
-    @explain_argtype(0, track_num, int)
+    @explain_argtype(0, is_track_num, int)
     def move(self, from_, to):
         self.corn.Move(int(from_), int(to))
 
