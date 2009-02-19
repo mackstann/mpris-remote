@@ -394,7 +394,7 @@ class Commander(object):
 
 class Commander_corn(Commander):
     def __init__(self):
-        super(Commander_corn, self).__init__(self)
+        super(Commander_corn, self).__init__()
         corn_obj = bus.get_object('org.mpris.corn', '/Corn')
         self.corn = dbus.Interface(corn_obj, dbus_interface='org.corn.CornPlayer')
 
