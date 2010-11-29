@@ -158,11 +158,14 @@ class is_track_num(object):
     elif tracklist_len == 0:
         type_desc = 'an integer within [0..<tracklist length>], ' \
                     'although the current track list is empty, so ' \
-                    'no number you could possibly come up with would ' \
-                    'be good enough right now'
+                    'no track number would currently be valid'
+    else:
+        type_desc = 'an integer within [0..<tracklist length>] (current tracklist length is unavailable)'
+
     def __init__(self, arg):
+        int(arg)
         if tracklist_len == -1:
-            return # not much we can do
+            return # not much we can do; just assume it's okay to pass along
         if not 0 <= int(arg) <= tracklist_len-1:
             raise ValueError
 
