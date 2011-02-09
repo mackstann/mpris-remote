@@ -136,7 +136,7 @@ except dbus.exceptions.DBusException:
     # GetLength() not supported by player (BMPx for example)
     tracklist_len = -1
 
-class YouDidItWrong(Exception): pass
+class BadUserInput(Exception): pass
 
 # argument type/content validity checkers
 
@@ -201,7 +201,7 @@ def explain_numargs(*forms):
         def new(self, *args):
             if len(args) not in forms:
                 s = ' or '.join(map(str, forms))
-                raise YouDidItWrong("%s takes %s argument(s)." % (meth.func_name, s))
+                raise BadUserInput("%s takes %s argument(s)." % (meth.func_name, s))
             return meth(self, *args)
         new.func_name = meth.func_name
         return new
@@ -214,7 +214,7 @@ def explain_argtype(i, typeclass, optional=False):
                 try:
                     typeclass(args[i])
                 except:
-                    raise YouDidItWrong("argument %d to %s must be %s." % (i+1, meth.func_name, typeclass.type_desc))
+                    raise BadUserInput("argument %d to %s must be %s." % (i+1, meth.func_name, typeclass.type_desc))
             return meth(self, *args)
         new.func_name = meth.func_name
         return new
@@ -241,7 +241,7 @@ def print_metadata(dct):
 
         print "%s: %s" % (k, v)
 
-class Commander(object):
+class MPRISRemote(object):
 
     # root
 
@@ -346,7 +346,7 @@ class Commander(object):
 
                 path = line.rstrip('\r\n')
                 if not (os.path.isfile(path) or os.path.isdir(path)):
-                    raise YouDidItWrong('not a file or directory: %s' % path)
+                    raise BadUserInput('not a file or directory: %s' % path)
 
                 if bool(playnow) and i == 0:
                     tracklist.AddTrack(path, True)
@@ -393,11 +393,11 @@ class Commander(object):
             else:
                 print "true" if status[2] else "false"
 
-# player-specific Commanders, only one for now
+# player-specific MPRISRemotes, only one for now
 
-class Commander_corn(Commander):
+class MPRISRemote_corn(MPRISRemote):
     def __init__(self):
-        super(Commander_corn, self).__init__()
+        super(MPRISRemote_corn, self).__init__()
         corn_obj = bus.get_object('org.mpris.corn', '/Corn')
         self.corn = dbus.Interface(corn_obj, dbus_interface='org.corn.CornPlayer')
 
@@ -409,7 +409,7 @@ class Commander_corn(Commander):
     @explain_argtype(0, is_track_num, optional=True)
     def play(self, pos=None):
         if pos is None:
-            super(Commander_corn, self).play()
+            super(MPRISRemote_corn, self).play()
         else:
             self.corn.PlayTrack(int(pos))
 
@@ -429,7 +429,7 @@ def playstatus_from_int(n):
     return ['playing', 'paused', 'stopped'][n]
 
 
-def print_nicey_nice():
+def print_verbose_status():
     # to be compatible with a wide array of implementations (some very
     # incorrect/incomplete), we have to do a LOT of extra work here.
 
@@ -544,21 +544,21 @@ def print_nicey_nice():
 
 if __name__ == '__main__':
     if len(sys.argv) == 1:
-        print_nicey_nice()
+        print_verbose_status()
     elif sys.argv[1] in ('-h', '--help', '-?'):
         print usage
     else:
         method_name = sys.argv[1]
         args = sys.argv[2:]
 
-        if 'Commander_'+player_name in globals():
-            cmdr = globals()['Commander_'+player_name]
+        if 'MPRISRemote_'+player_name in globals():
+            cmdr = globals()['MPRISRemote_'+player_name]
         else:
-            cmdr = Commander
+            cmdr = MPRISRemote
 
         try:
             getattr(cmdr(), method_name)(*args)
-        except YouDidItWrong, e:
+        except BadUserInput, e:
             print >>sys.stderr, e
             raise SystemExit(1)
         except KeyboardInterrupt:
