@@ -175,7 +175,7 @@ class is_track_num_or_star(object):
         if arg != '*':
             is_track_num(arg)
 
-class is_valid_corn_uri(object):
+class is_valid_uri(object):
     type_desc = 'a valid URI (media file, playlist file, stream URI, or directory)'
     def __init__(self, arg):
         if arg.startswith('file://'):
@@ -189,10 +189,6 @@ class is_valid_corn_uri(object):
             return
 
         raise ValueError
-
-# when other players are supported more completely, we can have multiple
-# player-specific versions of this.  for now there's just one.
-is_valid_uri = is_valid_corn_uri
 
 # wrong argument(s) explanation decorators
 
@@ -393,30 +389,6 @@ class MPRISRemote(object):
             else:
                 print "true" if status[2] else "false"
 
-# player-specific MPRISRemotes, only one for now
-
-class MPRISRemote_corn(MPRISRemote):
-    def __init__(self):
-        super(MPRISRemote_corn, self).__init__()
-        corn_obj = bus.get_object('org.mpris.corn', '/Corn')
-        self.corn = dbus.Interface(corn_obj, dbus_interface='org.corn.CornPlayer')
-
-    @explain_numargs(0)
-    def clear(self):
-        self.corn.Clear()
-
-    @explain_numargs(0, 1)
-    @explain_argtype(0, is_track_num, optional=True)
-    def play(self, pos=None):
-        if pos is None:
-            super(MPRISRemote_corn, self).play()
-        else:
-            self.corn.PlayTrack(int(pos))
-
-    @explain_numargs(2)
-    @explain_argtype(0, is_track_num, int)
-    def move(self, from_, to):
-        self.corn.Move(int(from_), int(to))
 
 def format_time(rawms):
     min = rawms / 1000 / 60
@@ -551,13 +523,8 @@ if __name__ == '__main__':
         method_name = sys.argv[1]
         args = sys.argv[2:]
 
-        if 'MPRISRemote_'+player_name in globals():
-            cmdr = globals()['MPRISRemote_'+player_name]
-        else:
-            cmdr = MPRISRemote
-
         try:
-            getattr(cmdr(), method_name)(*args)
+            getattr(MPRISRemote(), method_name)(*args)
         except BadUserInput, e:
             print >>sys.stderr, e
             raise SystemExit(1)
