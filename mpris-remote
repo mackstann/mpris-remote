@@ -98,6 +98,14 @@ class BadUserInput(Exception):
 
 # argument type/content validity checkers
 
+class is_int(object):
+    @staticmethod
+    def type_desc(remote):
+        return 'an integer'
+
+    def __init__(self, remote, arg):
+        int(arg)
+
 class is_boolean(object):
     @staticmethod
     def type_desc(remote):
@@ -321,7 +329,7 @@ class MPRISRemote(object):
         print format_time(self.player.PositionGet())
 
     @explain_numargs(1)
-    @explain_argtype(0, int)
+    @explain_argtype(0, is_int)
     def seek(self, pos):
         self.player.PositionSet(int(pos))
 
