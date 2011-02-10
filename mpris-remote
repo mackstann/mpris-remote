@@ -62,12 +62,6 @@ COMMANDS:
   identity             print identity of player (e.g. name and version)
   quit                 cause player to exit
 
-PLAYER-SPECIFIC COMMANDS:
-
-  CORN:
-
-    play <track#>      play a specific track
-
 ENVIRONMENT VARIABLES:
 
   MPRIS_REMOTE_PLAYER
