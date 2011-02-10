@@ -4,6 +4,7 @@ _method_calls = []
 def start_mocking(player_name):
     global _current_player_name
     _current_player_name = player_name
+    _method_calls[:] = []
 
 class MockFailure(Exception):
     pass
