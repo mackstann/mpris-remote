@@ -447,7 +447,8 @@ class MPRISRemote(object):
             pos = None
 
         try:
-            meta = dict(self.player.GetMetadata())
+            meta = self.player.GetMetadata()
+            meta = dict(meta) if meta else {}
         except dbus.exceptions.DBusException:
             meta = {}
 
