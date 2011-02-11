@@ -143,7 +143,7 @@ class is_track_num_or_star(object):
 
     def __init__(self, remote, arg):
         if arg != '*':
-            is_track_num(arg)
+            is_track_num(remote, arg)
 
 class is_valid_uri(object):
     @staticmethod
