@@ -1,10 +1,15 @@
 _current_player_name = None
 _method_calls = []
+_mocked_methods = {}
 
 def start_mocking(player_name):
     global _current_player_name
     _current_player_name = player_name
     _method_calls[:] = []
+    _mocked_methods.clear()
+
+def mock_method(object_path, method, func):
+    _mocked_methods[(object_path, method)] = func
 
 class MockFailure(Exception):
     pass
@@ -36,7 +41,10 @@ class Interface(object):
 
     def __getattr__(self, methodname):
         def recorder(*args):
-            _method_calls.append((self.obj.path, methodname) + args)
+            key = (self.obj.path, methodname)
+            _method_calls.append(key + args)
+            if key in _mocked_methods:
+                return _mocked_methods[key]()
         return recorder
 
 class exceptions(object):

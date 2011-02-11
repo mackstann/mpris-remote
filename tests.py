@@ -8,6 +8,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'mock'))
 import dbus, mprisremote
 
 class MPRISRemoteTests(unittest.TestCase):
+    def setUp(self):
+        # often times we want to call this several times within one test, but
+        # at the very least, we will always want to call it once at the
+        # beginning.
+        dbus.start_mocking('foo')
+
     def callCommand(self, command, *args):
         dbus.start_mocking('foo')
         r = mprisremote.MPRISRemote()
@@ -59,6 +65,35 @@ class MPRISRemoteTests(unittest.TestCase):
 
     def test_extra_arg(self):
         self.assertBadInput('identity', 'x')
+
+    def test_print_verbose_status_nothing(self):
+        self.assertEquals('', mprisremote.MPRISRemote().verbose_status())
+
+    def test_print_verbose_status_typical(self):
+        dbus.mock_method('/TrackList', 'GetLength', lambda: 4)
+        dbus.mock_method('/Player', 'GetStatus', lambda: [0, 1, 0, 1])
+        dbus.mock_method('/TrackList', 'GetCurrentTrack', lambda: 2)
+        dbus.mock_method('/Player', 'PositionGet', lambda: 89147)
+        dbus.mock_method('/Player', 'GetMetadata', lambda: {
+            'audio-bitrate': 289671,
+            'time': 143,
+            'mtime': 143201,
+            'album': 'This is the Album',
+            'artist': 'An Artist',
+            'date': '1997',
+            'length': 143201,
+            'location': 'file:///home/me/Music/An%20Artist/This%20is%20the%20Album%20I_%201974-1980/An Artist%20-%2003%20-%20Yeah%20Whatever.mp3',
+            'title': 'Yeah Whatever',
+            'trackid': '00000000-1111-2222-3333-444444444444',
+            'tracknumber': '3',
+        })
+        expected_output = (
+            '[playing 3/4] @ 1:29/2:23 - #3\n'
+            '  artist: An Artist\n'
+            '  title: Yeah Whatever\n'
+            '  album: This is the Album\n'
+            '[repeat off] [random on] [loop on]\n')
+        self.assertEquals(expected_output, mprisremote.MPRISRemote().verbose_status())
 
 if __name__ == '__main__':
     unittest.main()

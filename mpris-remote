@@ -423,9 +423,11 @@ class MPRISRemote(object):
             else:
                 print "true" if status[2] else "false"
 
-    def print_verbose_status(self):
+    def verbose_status(self):
         # to be compatible with a wide array of implementations (some very
         # incorrect/incomplete), we have to do a LOT of extra work here.
+
+        output = ''
 
         try:
             status = self.player.GetStatus()
@@ -479,70 +481,72 @@ class MPRISRemote(object):
         ##
 
         if have_player_info:
-            sys.stdout.write('[')
+            output += '['
 
         if have_status:
-            sys.stdout.write("%s" % playstatus_from_int(status[0]))
+            output += "%s" % playstatus_from_int(status[0])
             if have_curtrack:
-                sys.stdout.write(' ')
+                output += ' '
 
         if have_curtrack:
-            sys.stdout.write(str(curtrack+1))
+            output += str(curtrack+1)
             if have_listlen:
-                sys.stdout.write('/')
+                output += '/'
 
         if have_listlen:
-            sys.stdout.write(str(self.tracklist_len))
+            output += str(self.tracklist_len)
 
         if have_player_info:
-            sys.stdout.write(']')
+            output += ']'
 
         ##
 
         if have_player_info and have_song_info:
-            sys.stdout.write(' ')
+            output += ' '
 
         ##
 
         if have_pos or have_mtime:
-            sys.stdout.write('@ ')
+            output += '@ '
             if have_pos:
-                sys.stdout.write(format_time(pos).split('.')[0])
+                output += format_time(pos).split('.')[0]
             elif have_mtime:
-                sys.stdout.write('?')
+                output += '?'
 
             if have_mtime:
-                sys.stdout.write('/')
-                sys.stdout.write(format_time(meta['mtime']).split('.')[0])
+                output += '/'
+                output += format_time(meta['mtime']).split('.')[0]
 
         if have_tracknum:
-            sys.stdout.write(' - #%s' % meta['tracknumber'])
+            output += ' - #%s' % meta['tracknumber']
 
         if have_player_info or have_song_info:
-            sys.stdout.write('\n')
+            output += '\n'
 
         ##
 
         if 'artist' in meta:
-            print '  artist:', meta['artist']
+            output += '  artist: ' + meta['artist'] + '\n'
         if 'title' in meta:
-            print '  title:', meta['title']
+            output += '  title: ' + meta['title'] + '\n'
         if 'album' in meta:
-            print '  album:', meta['album']
+            output += '  album: ' + meta['album'] + '\n'
 
         if have_status:
-            print '[repeat %s] [random %s] [loop %s]' % (
+            output += '[repeat %s] [random %s] [loop %s]\n' % (
                 "on" if status[2] else "off",
                 "on" if status[1] else "off",
                 "on" if status[3] else "off",
             )
+
+        return output
 
 
 if __name__ == '__main__':
     remote = MPRISRemote()
 
     if len(sys.argv) == 1:
-        remote.print_verbose_status()
+        sys.stdout.write(remote.verbose_status())
     elif sys.argv[1] in ('-h', '--help', '-?'):
         print usage
     else:
