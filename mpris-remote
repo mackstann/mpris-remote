@@ -82,10 +82,7 @@ NOTES:
   starts them at one.  (track "1/2" being the last track would make no sense.)
 """
 
-#import sys
-#sys.path.insert(0, './mock')
 import os, sys, re, time, urllib2, dbus
-#dbus.start_mocking('foo')
 
 org_mpris_re = re.compile('^org\.mpris\.([^.]+)$')
 
@@ -559,7 +556,4 @@ if __name__ == '__main__':
             raise SystemExit(1)
         except KeyboardInterrupt:
             raise SystemExit(2)
-
-        #print dbus._method_calls
-
 
