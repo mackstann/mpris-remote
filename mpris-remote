@@ -202,6 +202,9 @@ def playstatus_from_int(n):
     return ['playing', 'paused', 'stopped'][n]
 
 def print_metadata(dct):
+    if not dct:
+        print >>sys.stderr, "No track is currently selected."
+        return
     for k in sorted(dct.keys()):
         v = dct[k]
 
