@@ -17,6 +17,7 @@ class MPRISRemoteTests(unittest.TestCase):
     def callCommand(self, command, *args):
         dbus.start_mocking('foo')
         r = mprisremote.MPRISRemote()
+        r.find_player('foo')
         getattr(r, command)(*args)
 
     def assertCalled(self, methodcalls):
@@ -67,7 +68,9 @@ class MPRISRemoteTests(unittest.TestCase):
         self.assertBadInput('identity', 'x')
 
     def test_print_verbose_status_nothing(self):
-        self.assertEquals('', mprisremote.MPRISRemote().verbose_status())
+        r = mprisremote.MPRISRemote()
+        r.find_player('foo')
+        self.assertEquals('', r.verbose_status())
 
     def test_print_verbose_status_typical(self):
         dbus.mock_method('/TrackList', 'GetLength', lambda: 4)
@@ -93,7 +96,25 @@ class MPRISRemoteTests(unittest.TestCase):
             '  title: Yeah Whatever\n'
             '  album: This is the Album\n'
             '[repeat off] [random on] [loop on]\n')
-        self.assertEquals(expected_output, mprisremote.MPRISRemote().verbose_status())
+        r = mprisremote.MPRISRemote()
+        r.find_player('foo')
+        self.assertEquals(expected_output, r.verbose_status())
+
+    def test_find_player_success(self):
+        r = mprisremote.MPRISRemote()
+        r.find_player('foo')
+        self.assertEquals(['org.mpris.foo'], r.players_running)
+
+    def test_find_player_requested_not_running(self):
+        r = mprisremote.MPRISRemote()
+        self.assertRaises(mprisremote.RequestedPlayerNotRunning, r.find_player, 'bar')
+        self.assertEquals(['org.mpris.foo'], r.players_running)
+
+    def test_find_player_none_running(self):
+        dbus.start_mocking(None)
+        r = mprisremote.MPRISRemote()
+        self.assertRaises(mprisremote.NoPlayersRunning, r.find_player, 'foo')
+        self.assertEquals([], r.players_running)
 
 if __name__ == '__main__':
     unittest.main()

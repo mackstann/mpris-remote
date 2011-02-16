@@ -19,10 +19,6 @@ class _ProxyObject(object):
         self.path = path
 
 class SessionBus(object):
-    def __init__(self):
-        if _current_player_name is None:
-            raise MockFailure("start_mocking() was not called.")
-
     def get_object(self, bus_name, object_path):
         if bus_name != 'org.mpris.' + _current_player_name:
             raise MockFailure("requested player name is wrong")
@@ -31,7 +27,10 @@ class SessionBus(object):
         return _ProxyObject(object_path)
 
     def list_names(self):
-        return ['org.mpris.' + _current_player_name]
+        if _current_player_name is None:
+            return []
+        else:
+            return ['org.mpris.' + _current_player_name]
 
 class Interface(object):
     def __init__(self, obj, dbus_interface):

@@ -223,35 +223,32 @@ def print_metadata(dct):
 
         print "%s: %s" % (k, v)
 
+class RequestedPlayerNotRunning(Exception):
+    pass
+
+class NoPlayersRunning(Exception):
+    pass
+
 class MPRISRemote(object):
 
     def __init__(self):
         self.bus = dbus.SessionBus()
+        self.players_running = [ name for name in self.bus.list_names() if org_mpris_re.match(name) ]
 
-        self.player_name = os.environ.get('MPRIS_REMOTE_PLAYER', '*')
+    def find_player(self, requested_player_name):
+        if not self.players_running:
+            raise NoPlayersRunning()
 
-        if self.player_name == '*':
-            self.player_name = self._get_player()
+        if requested_player_name == '*':
+            self.player_name = org_mpris_re.match(self.players_running[0]).group(1)
+        else:
+            if 'org.mpris.%s' % requested_player_name not in self.players_running:
+                raise RequestedPlayerNotRunning()
+            self.player_name = requested_player_name
 
-        try:
-            root_obj      = self.bus.get_object('org.mpris.%s' % self.player_name, '/')
-            player_obj    = self.bus.get_object('org.mpris.%s' % self.player_name, '/Player')
-            tracklist_obj = self.bus.get_object('org.mpris.%s' % self.player_name, '/TrackList')
-        except dbus.exceptions.DBusException, e:
-            if e.get_dbus_name() != 'org.freedesktop.DBus.Error.ServiceUnknown':
-                raise
-
-            print >>sys.stderr, 'Player "%s" was not found to be running.' % self.player_name
-
-            names = self._possible_names()
-
-            if names:
-                print >>sys.stderr, "But the following players were found to be running:"
-                for n in names:
-                    print >>sys.stderr, "    %s" % n.replace("org.mpris.", "")
-            print >>sys.stderr, 'If you meant to use one of those players, ' \
-                                'set $MPRIS_REMOTE_PLAYER accordingly.'
-            raise SystemExit(1)
+        root_obj      = self.bus.get_object('org.mpris.%s' % self.player_name, '/')
+        player_obj    = self.bus.get_object('org.mpris.%s' % self.player_name, '/Player')
+        tracklist_obj = self.bus.get_object('org.mpris.%s' % self.player_name, '/TrackList')
 
         self.root      = dbus.Interface(root_obj,      dbus_interface='org.freedesktop.MediaPlayer')
         self.player    = dbus.Interface(player_obj,    dbus_interface='org.freedesktop.MediaPlayer')
@@ -263,16 +260,9 @@ class MPRISRemote(object):
             # GetLength() not supported by player (BMPx for example)
             self.tracklist_len = -1
 
+
     def _possible_names(self):
         return [ name for name in self.bus.list_names() if org_mpris_re.match(name) ]
-
-    # returns first matching player
-    def _get_player(self):
-        names = self._possible_names()
-        if not names:
-            print >>sys.stderr, "No MPRIS-compliant player found running."
-            raise SystemExit(1)
-        return org_mpris_re.match(names[0]).group(1)
 
     # commands
 
@@ -548,19 +538,35 @@ class MPRISRemote(object):
 if __name__ == '__main__':
     if len(sys.argv) > 1 and sys.argv[1] in ('-h', '--help', '-?'):
         print usage
-    else:
-        remote = MPRISRemote()
-        if len(sys.argv) == 1:
-            sys.stdout.write(remote.verbose_status())
-        else:
-            method_name = sys.argv[1]
-            args = sys.argv[2:]
+        raise SystemExit(0)
 
-            try:
-                getattr(remote, method_name)(*args)
-            except BadUserInput, e:
-                print >>sys.stderr, e
-                raise SystemExit(1)
-            except KeyboardInterrupt:
-                raise SystemExit(2)
+    player_name = os.environ.get('MPRIS_REMOTE_PLAYER', '*')
+    remote = MPRISRemote()
+
+    try:
+        remote.find_player(player_name)
+    except RequestedPlayerNotRunning, e:
+        print >>sys.stderr, 'Player "%s" is not running, but the following players were found:' % player_name
+        for n in remote.players_running:
+            print >>sys.stderr, "    %s" % n.replace("org.mpris.", "")
+        print >>sys.stderr, 'If you meant to use one of those players, ' \
+                            'set $MPRIS_REMOTE_PLAYER accordingly.'
+        raise SystemExit(1)
+    except NoPlayersRunning:
+        print >>sys.stderr, "No MPRIS-compliant players found running."
+        raise SystemExit(1)
+
+    if len(sys.argv) == 1:
+        sys.stdout.write(remote.verbose_status())
+    else:
+        method_name = sys.argv[1]
+        args = sys.argv[2:]
+
+        try:
+            getattr(remote, method_name)(*args)
+        except BadUserInput, e:
+            print >>sys.stderr, e
+            raise SystemExit(1)
+        except KeyboardInterrupt:
+            raise SystemExit(2)
 
