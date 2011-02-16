@@ -546,21 +546,21 @@ class MPRISRemote(object):
 
 
 if __name__ == '__main__':
-    remote = MPRISRemote()
-
-    if len(sys.argv) == 1:
-        sys.stdout.write(remote.verbose_status())
-    elif sys.argv[1] in ('-h', '--help', '-?'):
+    if len(sys.argv) > 1 and sys.argv[1] in ('-h', '--help', '-?'):
         print usage
     else:
-        method_name = sys.argv[1]
-        args = sys.argv[2:]
+        remote = MPRISRemote()
+        if len(sys.argv) == 1:
+            sys.stdout.write(remote.verbose_status())
+        else:
+            method_name = sys.argv[1]
+            args = sys.argv[2:]
 
-        try:
-            getattr(remote, method_name)(*args)
-        except BadUserInput, e:
-            print >>sys.stderr, e
-            raise SystemExit(1)
-        except KeyboardInterrupt:
-            raise SystemExit(2)
+            try:
+                getattr(remote, method_name)(*args)
+            except BadUserInput, e:
+                print >>sys.stderr, e
+                raise SystemExit(1)
+            except KeyboardInterrupt:
+                raise SystemExit(2)
 
