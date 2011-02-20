@@ -556,8 +556,11 @@ if __name__ == '__main__':
         print >>sys.stderr, "No MPRIS-compliant players found running."
         raise SystemExit(1)
 
+    import locale
+    encoding = sys.stdout.encoding or locale.getpreferredencoding() or 'ascii'
+
     if len(sys.argv) == 1:
-        sys.stdout.write(remote.verbose_status())
+        sys.stdout.write(remote.verbose_status().encode(encoding, 'replace'))
     else:
         method_name = sys.argv[1]
         args = sys.argv[2:]
