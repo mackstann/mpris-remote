@@ -330,10 +330,10 @@ class MPRISRemote(object):
     @explain_numargs(0)
     def playstatus(self):
         status = self.player.GetStatus()
-        print "playing: %s" % playstatus_from_int(status[0])
-        print "random/shuffle: %s" % ("true" if status[1] else "false")
-        print "repeat track: %s" % ("true" if status[2] else "false")
-        print "repeat list: %s" % ("true" if status[3] else "false")
+        return ("playing: %s\n" % playstatus_from_int(status[0])
+              + "random/shuffle: %s\n" % ("true" if status[1] else "false")
+              + "repeat track: %s\n" % ("true" if status[2] else "false")
+              + "repeat list: %s\n" % ("true" if status[3] else "false"))
 
     @explain_numargs(0, 1)
     @explain_argtype(0, is_track_num_or_star, optional=True)
@@ -560,16 +560,19 @@ if __name__ == '__main__':
     encoding = sys.stdout.encoding or locale.getpreferredencoding() or 'ascii'
 
     if len(sys.argv) == 1:
-        sys.stdout.write(remote.verbose_status().encode(encoding, 'replace'))
+        method_name = 'verbose_status'
+        args = []
     else:
         method_name = sys.argv[1]
         args = sys.argv[2:]
 
-        try:
-            getattr(remote, method_name)(*args)
-        except BadUserInput, e:
-            print >>sys.stderr, e
-            raise SystemExit(1)
-        except KeyboardInterrupt:
-            raise SystemExit(2)
+    try:
+        ret = getattr(remote, method_name)(*args)
+        if ret:
+            sys.stdout.write(ret.encode(encoding, 'replace'))
+    except BadUserInput, e:
+        print >>sys.stderr, e
+        raise SystemExit(1)
+    except KeyboardInterrupt:
+        raise SystemExit(2)
 

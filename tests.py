@@ -100,6 +100,16 @@ class MPRISRemoteTests(unittest.TestCase):
         r.find_player('foo')
         self.assertEquals(expected_output, r.verbose_status())
 
+    def test_playstatus(self):
+        dbus.mock_method('/Player', 'GetStatus', lambda: [0, 1, 0, 1])
+        expected_output = ("playing: playing\n"
+              + "random/shuffle: true\n"
+              + "repeat track: false\n"
+              + "repeat list: true\n")
+        r = mprisremote.MPRISRemote()
+        r.find_player('foo')
+        self.assertEquals(expected_output, r.playstatus())
+
     def test_find_player_success(self):
         r = mprisremote.MPRISRemote()
         r.find_player('foo')
