@@ -388,11 +388,11 @@ class MPRISRemote(object):
 
     @explain_numargs(0)
     def tracknum(self):
-        print self.tracklist.GetCurrentTrack()
+        yield str(self.tracklist.GetCurrentTrack()) + '\n'
 
     @explain_numargs(0)
     def numtracks(self):
-        print self.tracklist.GetLength()
+        yield str(self.tracklist.GetLength()) + '\n'
 
     @explain_numargs(0, 1)
     @explain_argtype(0, is_boolean, optional=True)
@@ -407,7 +407,7 @@ class MPRISRemote(object):
             except dbus.exceptions.DBusException:
                 print >>sys.stderr, "Player does not support checking loop status."
             else:
-                print "true" if status[3] else "false"
+                yield ("true" if status[3] else "false") + '\n'
 
     @explain_numargs(0, 1)
     @explain_argtype(0, is_boolean, optional=True)
@@ -422,7 +422,7 @@ class MPRISRemote(object):
             except dbus.exceptions.DBusException:
                 print >>sys.stderr, "Player does not support checking random status."
             else:
-                print "true" if status[2] else "false"
+                yield ("true" if status[2] else "false") + '\n'
 
     def verbose_status(self):
         # to be compatible with a wide array of implementations (some very
