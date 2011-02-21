@@ -43,7 +43,7 @@ class Interface(object):
             key = (self.obj.path, methodname)
             _method_calls.append(key + args)
             if key in _mocked_methods:
-                return _mocked_methods[key]()
+                return _mocked_methods[key](*args)
         return recorder
 
 class exceptions(object):

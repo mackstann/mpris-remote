@@ -108,7 +108,32 @@ class MPRISRemoteTests(unittest.TestCase):
               + "repeat list: true\n")
         r = mprisremote.MPRISRemote()
         r.find_player('foo')
-        self.assertEquals(expected_output, r.playstatus())
+        self.assertEquals(expected_output, ''.join(r.playstatus()))
+
+    def test_trackinfo(self):
+        dbus.mock_method('/Player', 'GetMetadata', lambda: { 'a': 'b', 'c': 1000 })
+        expected_output = 'a: b\nc: 1000\n'
+        r = mprisremote.MPRISRemote()
+        r.find_player('foo')
+        self.assertEquals(expected_output, ''.join(r.trackinfo()))
+
+    def test_trackinfo_with_star(self):
+        dbus.mock_method('/TrackList', 'GetLength', lambda: 3)
+        dbus.mock_method('/TrackList', 'GetMetadata', lambda tracknum: { 'a': 'b', 'c': tracknum })
+        expected_output = ('a: b\nc: 0\n\n'
+                         + 'a: b\nc: 1\n\n'
+                         + 'a: b\nc: 2\n\n')
+        r = mprisremote.MPRISRemote()
+        r.find_player('foo')
+        self.assertEquals(expected_output, ''.join(r.trackinfo('*')))
+
+    def test_trackinfo_with_track_number(self):
+        dbus.mock_method('/TrackList', 'GetLength', lambda: 9)
+        dbus.mock_method('/TrackList', 'GetMetadata', lambda tracknum: { 'a': 'b', 'c': tracknum })
+        expected_output = 'a: b\nc: 8\n'
+        r = mprisremote.MPRISRemote()
+        r.find_player('foo')
+        self.assertEquals(expected_output, ''.join(r.trackinfo('8')))
 
     def test_find_player_success(self):
         r = mprisremote.MPRISRemote()

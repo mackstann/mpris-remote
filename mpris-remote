@@ -201,10 +201,11 @@ def format_time(rawms):
 def playstatus_from_int(n):
     return ['playing', 'paused', 'stopped'][n]
 
-def print_metadata(dct):
-    if not dct:
-        print >>sys.stderr, "No track is currently selected."
-        return
+class NoTrackCurrentlySelected(Exception):
+    pass
+
+def format_metadata(dct):
+    lines = []
     for k in sorted(dct.keys()):
         v = dct[k]
 
@@ -221,7 +222,8 @@ def print_metadata(dct):
         if k == 'mtime':
             v = "%s (%s)" % (v, format_time(int(v)))
 
-        print "%s: %s" % (k, v)
+        lines.append("%s: %s" % (k, v))
+    return '\n'.join(lines) + '\n'
 
 class RequestedPlayerNotRunning(Exception):
     pass
@@ -330,22 +332,28 @@ class MPRISRemote(object):
     @explain_numargs(0)
     def playstatus(self):
         status = self.player.GetStatus()
-        return ("playing: %s\n" % playstatus_from_int(status[0])
-              + "random/shuffle: %s\n" % ("true" if status[1] else "false")
-              + "repeat track: %s\n" % ("true" if status[2] else "false")
-              + "repeat list: %s\n" % ("true" if status[3] else "false"))
+        yield ("playing: %s\n" % playstatus_from_int(status[0])
+             + "random/shuffle: %s\n" % ("true" if status[1] else "false")
+             + "repeat track: %s\n" % ("true" if status[2] else "false")
+             + "repeat list: %s\n" % ("true" if status[3] else "false"))
 
     @explain_numargs(0, 1)
     @explain_argtype(0, is_track_num_or_star, optional=True)
     def trackinfo(self, track=None):
         if track == '*':
             for i in range(self.tracklist_len):
-                print_metadata(self.tracklist.GetMetadata(i))
-                print
-        elif track is not None:
-            print_metadata(self.tracklist.GetMetadata(int(track)))
+                meta = self.tracklist.GetMetadata(i)
+                if meta is not None:
+                    yield format_metadata(self.tracklist.GetMetadata(i))
+                    yield '\n'
         else:
-            print_metadata(self.player.GetMetadata())
+            if track is not None:
+                meta = self.tracklist.GetMetadata(int(track))
+            else:
+                meta = self.player.GetMetadata()
+                if meta is None:
+                    raise NoTrackCurrentlySelected()
+            yield format_metadata(meta)
 
     # tracklist
 
@@ -567,12 +575,14 @@ if __name__ == '__main__':
         args = sys.argv[2:]
 
     try:
-        ret = getattr(remote, method_name)(*args)
-        if ret:
-            sys.stdout.write(ret.encode(encoding, 'replace'))
+        output_generator = getattr(remote, method_name)(*args) or []
+        for chunk in output_generator:
+            sys.stdout.write(chunk.encode(encoding, 'replace'))
     except BadUserInput, e:
         print >>sys.stderr, e
         raise SystemExit(1)
+    except NoTrackCurrentlySelected:
+        print >>sys.stderr, "No track is currently selected."
     except KeyboardInterrupt:
         raise SystemExit(2)
 
