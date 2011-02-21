@@ -135,6 +135,30 @@ class MPRISRemoteTests(unittest.TestCase):
         r.find_player('foo')
         self.assertEquals(expected_output, ''.join(r.trackinfo('8')))
 
+    def test_random_get_true(self):
+        dbus.mock_method('/Player', 'GetStatus', lambda: [0, 1, 0, 0])
+        r = mprisremote.MPRISRemote()
+        r.find_player('foo')
+        self.assertEquals('true\n', ''.join(r.random()))
+
+    def test_random_get_false(self):
+        dbus.mock_method('/Player', 'GetStatus', lambda: [0, 0, 0, 0])
+        r = mprisremote.MPRISRemote()
+        r.find_player('foo')
+        self.assertEquals('false\n', ''.join(r.random()))
+
+    def test_loop_get_true(self):
+        dbus.mock_method('/Player', 'GetStatus', lambda: [0, 0, 0, 1])
+        r = mprisremote.MPRISRemote()
+        r.find_player('foo')
+        self.assertEquals('true\n', ''.join(r.loop()))
+
+    def test_loop_get_false(self):
+        dbus.mock_method('/Player', 'GetStatus', lambda: [0, 0, 0, 0])
+        r = mprisremote.MPRISRemote()
+        r.find_player('foo')
+        self.assertEquals('false\n', ''.join(r.loop()))
+
     def test_find_player_success(self):
         r = mprisremote.MPRISRemote()
         r.find_player('foo')

@@ -422,7 +422,7 @@ class MPRISRemote(object):
             except dbus.exceptions.DBusException:
                 print >>sys.stderr, "Player does not support checking random status."
             else:
-                yield ("true" if status[2] else "false") + '\n'
+                yield ("true" if status[1] else "false") + '\n'
 
     def verbose_status(self):
         # to be compatible with a wide array of implementations (some very
