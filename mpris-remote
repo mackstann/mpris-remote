@@ -372,19 +372,23 @@ class MPRISRemote(object):
     @explain_argtype(0, is_valid_uri)
     @explain_argtype(1, is_boolean, optional=True)
     def addtrack(self, uri, playnow='false'):
+        playnow = playnow == 'true'
         if uri == '-':
             for i, line in enumerate(sys.stdin):
-
                 path = line.rstrip('\r\n')
+
+                if not path.strip():
+                    continue
+
                 if not (os.path.isfile(path) or os.path.isdir(path)):
                     raise BadUserInput('not a file or directory: %s' % path)
 
-                if bool(playnow) and i == 0:
+                if playnow and i == 0:
                     self.tracklist.AddTrack(path, True)
                 else:
                     self.tracklist.AddTrack(path, False)
         else:
-            self.tracklist.AddTrack(uri, bool(playnow))
+            self.tracklist.AddTrack(uri, playnow)
 
     @explain_numargs(0)
     def tracknum(self):

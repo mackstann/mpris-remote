@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import sys, os, unittest
+import sys, os, unittest, StringIO
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'mock'))
 
 # the mprisremote.py in mock/ is just a symlink to mpris-remote.  this is so we
@@ -134,6 +134,42 @@ class MPRISRemoteTests(unittest.TestCase):
         r = mprisremote.MPRISRemote()
         r.find_player('foo')
         self.assertEquals(expected_output, ''.join(r.trackinfo('8')))
+
+    def test_addtrack_playnow_flag_single_file(self):
+        dummy_filename = __file__ # arg must be a real filename that exists
+        self.assertCallDbusActivity('addtrack', [dummy_filename, 'true' ], ('/TrackList', 'AddTrack', dummy_filename, True))
+        self.assertCallDbusActivity('addtrack', [dummy_filename, 'false'], ('/TrackList', 'AddTrack', dummy_filename, False))
+        self.assertCallDbusActivity('addtrack', [dummy_filename         ], ('/TrackList', 'AddTrack', dummy_filename, False))
+
+    def test_addtrack_playnow_flag_multiple_files(self):
+        # file args must be real paths that exist.
+        dummy_filename = __file__
+        dummy_filename2 = os.getcwd()
+
+        stdin = sys.stdin
+
+        sys.stdin = StringIO.StringIO()
+        sys.stdin.write(dummy_filename + "\n" + dummy_filename2 + "\n")
+        sys.stdin.seek(0)
+        self.assertCallDbusActivity('addtrack', ['-', 'true' ],
+            ('/TrackList', 'AddTrack', dummy_filename, True),
+            ('/TrackList', 'AddTrack', dummy_filename2, False))
+
+        sys.stdin = StringIO.StringIO()
+        sys.stdin.write(dummy_filename + "\n" + dummy_filename2 + "\n")
+        sys.stdin.seek(0)
+        self.assertCallDbusActivity('addtrack', ['-', 'false'],
+            ('/TrackList', 'AddTrack', dummy_filename, False),
+            ('/TrackList', 'AddTrack', dummy_filename2, False))
+
+        sys.stdin = StringIO.StringIO()
+        sys.stdin.write(dummy_filename + "\n" + dummy_filename2 + "\n")
+        sys.stdin.seek(0)
+        self.assertCallDbusActivity('addtrack', ['-'         ],
+            ('/TrackList', 'AddTrack', dummy_filename, False),
+            ('/TrackList', 'AddTrack', dummy_filename2, False))
+
+        sys.stdin = stdin
 
     def test_random_get_true(self):
         dbus.mock_method('/Player', 'GetStatus', lambda: [0, 1, 0, 0])
